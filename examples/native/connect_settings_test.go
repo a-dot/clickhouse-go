@@ -15,59 +15,51 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"net"
+	"testing"
+	"time"
 )
 
-const ddl = `
-CREATE TABLE example (
-	  Col1 UInt64
-	, Col2 String
-	, Col3 Array(UInt8)
-	, Col4 DateTime
-) ENGINE = Memory
-`
-
-func main() {
+func pingWithSettings() error {
+	dialCount := 0
 	var (
-		ctx       = context.Background()
 		conn, err = clickhouse.Open(&clickhouse.Options{
 			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
+			DialContext: func(ctx context.Context, addr string) (net.Conn, error) {
+				dialCount++
+				var d net.Dialer
+				return d.DialContext(ctx, "tcp", addr)
 			},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
+			Debug: true,
+			Debugf: func(format string, v ...interface{}) {
+				fmt.Printf(format, v)
+			},
+			Settings: clickhouse.Settings{
+				"max_execution_time": 60,
+			},
+			Compression: &clickhouse.Compression{
+				Method: clickhouse.CompressionLZ4,
+			},
+			DialTimeout:      time.Duration(10) * time.Second,
+			MaxOpenConns:     5,
+			MaxIdleConns:     5,
+			ConnMaxLifetime:  time.Duration(10) * time.Minute,
+			ConnOpenStrategy: clickhouse.ConnOpenInOrder,
 		})
 	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return conn.Ping(context.Background())
+}
 
-	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
-		log.Fatal(err)
-	}
-	if err := conn.Exec(ctx, ddl); err != nil {
-		log.Fatal(err)
-	}
-	for i := 0; i < 100; i++ {
-		err := conn.AsyncInsert(ctx, fmt.Sprintf(`INSERT INTO example VALUES (
-			%d, '%s', [1, 2, 3, 4, 5, 6, 7, 8, 9], now()
-		)`, i, "Golang SQL database driver"), false)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+func TestConnectWithSettings(t *testing.T) {
+	require.NoError(t, pingWithSettings())
 }

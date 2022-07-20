@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
 )
 
-func main() {
+func scanStruct() error {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"127.0.0.1:9000"},
 		Auth: clickhouse.Auth{
@@ -40,85 +40,58 @@ func main() {
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
-		//Debug: true,
 	})
-	if err := conn.Ping(context.Background()); err != nil {
-		log.Fatal(err)
-	}
-	var settings []struct {
-		Name        string  `ch:"name"`
-		Value       string  `ch:"value"`
-		Changed     uint8   `ch:"changed"`
-		Description string  `ch:"description"`
-		Min         *string `ch:"min"`
-		Max         *string `ch:"max"`
-		Readonly    uint8   `ch:"readonly"`
-		Type        string  `ch:"type"`
-	}
-	if err = conn.Select(context.Background(), &settings, "SELECT * FROM system.settings WHERE name LIKE $1 ORDER BY length(name) LIMIT 5", "%max%"); err != nil {
-		log.Fatal(err)
-	}
-	for _, s := range settings {
-		fmt.Printf("name: %s, value: %s, type=%s\n", s.Name, s.Value, s.Type)
-	}
-
-	if err = conn.Exec(context.Background(), "TUNCATE TABLE X"); err == nil {
-		panic("unexpected")
-	}
-	if exception, ok := err.(*clickhouse.Exception); ok {
-		fmt.Printf("Catch exception [%d]\n", exception.Code)
-	}
 	const ddl = `
 	CREATE TABLE example (
-		  Col1 UInt64
+		  Col1 Int64
 		, Col2 FixedString(2)
-		, Col3 Map(String, String)
-		, Col4 Array(String)
+		, Col3 Map(String, Int64)
+		, Col4 Array(Int64)
 		, Col5 DateTime64(3)
 	) Engine Memory
 	`
+	defer func() {
+		conn.Exec(context.Background(), "DROP TABLE example")
+	}()
 	if err := conn.Exec(context.Background(), "DROP TABLE IF EXISTS example"); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := conn.Exec(context.Background(), ddl); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	batch, err := conn.PrepareBatch(context.Background(), "INSERT INTO example")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	for i := 0; i < 10_000; i++ {
+	for i := int64(0); i < 1000; i++ {
 		err := batch.Append(
-			uint64(i),
+			i%10,
 			"CH",
-			map[string]string{
-				"key": "value",
+			map[string]int64{
+				"key": i,
 			},
-			[]string{"A", "B", "C"},
+			[]int64{i, i + 1, i + 2},
 			time.Now(),
 		)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 	if err := batch.Send(); err != nil {
-		log.Fatal(err)
+		return err
 	}
-	ctx := clickhouse.Context(context.Background(), clickhouse.WithProgress(func(p *clickhouse.Progress) {
-		fmt.Println("progress: ", p)
-	}))
 
-	var count uint64
-	if err := conn.QueryRow(ctx, "SELECT COUNT() FROM example").Scan(&count); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("count", count)
 	var result struct {
-		Col1  uint64
+		Col1  int64
 		Count uint64 `ch:"count"`
 	}
-	if err := conn.QueryRow(ctx, "SELECT Col1, COUNT() AS count FROM example WHERE Col1 = $1 GROUP BY Col1", 42).ScanStruct(&result); err != nil {
-		log.Fatal(err)
+	if err := conn.QueryRow(context.Background(), "SELECT Col1, COUNT() AS count FROM example WHERE Col1 = 5 GROUP BY Col1").ScanStruct(&result); err != nil {
+		return err
 	}
 	fmt.Println("result", result)
+	return nil
+}
+
+func TestScanStruct(t *testing.T) {
+	require.NoError(t, scanStruct())
 }

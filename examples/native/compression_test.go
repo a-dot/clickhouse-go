@@ -15,52 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"strconv"
+	"testing"
 )
 
-const ddl = `
-CREATE TABLE example (
-	  Col1 UInt64
-	, Col2 String
-	, Col3 Array(UInt8)
-	, Col4 DateTime
-) Engine = Memory
-`
-
-type row struct {
-	Col1 uint64
-	Col4 time.Time
-	Col2 string
-	Col3 []uint8
-}
-
-func example(conn clickhouse.Conn) error {
-	batch, err := conn.PrepareBatch(context.Background(), "INSERT INTO example")
-	if err != nil {
-		return err
-	}
-	for i := 0; i < 1_000; i++ {
-		err := batch.AppendStruct(&row{
-			Col1: uint64(i),
-			Col2: "Golang SQL database driver",
-			Col3: []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9},
-			Col4: time.Now(),
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return batch.Send()
-}
-
-func main() {
+func compress() error {
 	var (
 		ctx       = context.Background()
 		conn, err = clickhouse.Open(&clickhouse.Options{
@@ -70,23 +35,37 @@ func main() {
 				Username: "default",
 				Password: "",
 			},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
+			Compression: &clickhouse.Compression{
+				Method: clickhouse.CompressionZSTD,
+			},
+			MaxOpenConns: 1,
 		})
 	)
+
+	defer func() {
+		conn.Exec(ctx, "DROP TABLE example")
+	}()
+	conn.Exec(context.Background(), "DROP TABLE IF EXISTS example")
+	err = conn.Exec(ctx, `
+		CREATE TABLE example (
+			  Col1 Array(String)
+		) Engine Memory
+		`)
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO example")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
-		log.Fatal(err)
+	for i := 0; i < 1000; i++ {
+		if err := batch.Append([]string{strconv.Itoa(i), strconv.Itoa(i + 1), strconv.Itoa(i + 2), strconv.Itoa(i + 3)}); err != nil {
+			return err
+		}
 	}
-	if err := conn.Exec(ctx, ddl); err != nil {
-		log.Fatal(err)
+	if err := batch.Send(); err != nil {
+		return err
 	}
-	if err := example(conn); err != nil {
-		log.Fatal(err)
-	}
+	return nil
+}
+
+func TestZSTDCompression(t *testing.T) {
+	require.NoError(t, compress())
 }

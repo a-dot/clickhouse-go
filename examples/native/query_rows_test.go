@@ -20,10 +20,10 @@ package examples
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
 )
 
 func queryRows() error {
@@ -34,31 +34,14 @@ func queryRows() error {
 			Username: "default",
 			Password: "",
 		},
-		//Debug:           true,
-		DialTimeout:     time.Second,
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: time.Hour,
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
 	})
 	if err != nil {
 		return err
 	}
-	ctx := clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
-		"max_block_size": 10,
-	}), clickhouse.WithProgress(func(p *clickhouse.Progress) {
-		fmt.Println("progress: ", p)
-	}), clickhouse.WithProfileInfo(func(p *clickhouse.ProfileInfo) {
-		fmt.Println("profile info: ", p)
-	}))
-	if err := conn.Ping(ctx); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			fmt.Printf("Catch exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
-		}
-		return err
-	}
+	ctx := context.Background()
+	defer func() {
+		conn.Exec(ctx, "DROP TABLE example")
+	}()
 	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
 		return err
 	}
@@ -85,7 +68,7 @@ func queryRows() error {
 		return err
 	}
 
-	rows, err := conn.Query(ctx, "SELECT Col1, Col2, Col3 FROM example WHERE Col1 >= $1 AND Col2 <> $2 AND Col3 <= $3", 0, "xxx", time.Now())
+	rows, err := conn.Query(ctx, "SELECT Col1, Col2, Col3 FROM example WHERE Col1 >= 2")
 	if err != nil {
 		return err
 	}
@@ -104,8 +87,6 @@ func queryRows() error {
 	return rows.Err()
 }
 
-func main() {
-	if err := queryRows(); err != nil {
-		log.Fatal(err)
-	}
+func TestQueryRows(t *testing.T) {
+	require.NoError(t, queryRows())
 }

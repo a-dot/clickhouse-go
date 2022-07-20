@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
 )
 
-func example() error {
+func selectStruct() error {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"127.0.0.1:9000"},
 		Auth: clickhouse.Auth{
@@ -34,29 +34,11 @@ func example() error {
 			Username: "default",
 			Password: "",
 		},
-		//Debug:           true,
-		DialTimeout:     time.Second,
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: time.Hour,
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
 	})
 	if err != nil {
 		return err
 	}
-	ctx := clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
-		"max_block_size": 10,
-	}), clickhouse.WithProgress(func(p *clickhouse.Progress) {
-		fmt.Println("progress: ", p)
-	}))
-	if err := conn.Ping(ctx); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			fmt.Printf("Catch exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
-		}
-		return err
-	}
+	ctx := context.Background()
 	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
 		return err
 	}
@@ -67,6 +49,9 @@ func example() error {
 			Col3 DateTime
 		) engine=Memory
 	`)
+	defer func() {
+		conn.Exec(context.Background(), "DROP TABLE example")
+	}()
 	if err != nil {
 		return err
 	}
@@ -74,8 +59,8 @@ func example() error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < 10; i++ {
-		if err := batch.Append(uint8(i), fmt.Sprintf("value_%d", i), time.Now()); err != nil {
+	for i := 0; i < 100; i++ {
+		if err := batch.Append(uint8(i), fmt.Sprintf("value_%d", i), time.Now().Add(time.Duration(i)*time.Second)); err != nil {
 			return err
 		}
 	}
@@ -100,8 +85,6 @@ func example() error {
 	return nil
 }
 
-func main() {
-	if err := example(); err != nil {
-		log.Fatal(err)
-	}
+func TestSelectStruct(t *testing.T) {
+	require.NoError(t, selectStruct())
 }

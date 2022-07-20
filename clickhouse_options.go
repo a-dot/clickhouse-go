@@ -29,13 +29,44 @@ import (
 	"time"
 )
 
-type CompressionMethod compress.Method
+type CompressionMethod byte
+
+func (c CompressionMethod) String() string {
+	switch c {
+	case CompressionNone:
+		return "none"
+	case CompressionZSTD:
+		return "zstd"
+	case CompressionLZ4:
+		return "lz4"
+	case CompressionGZIP:
+		return "gzip"
+	case CompressionDeflate:
+		return "deflate"
+	case CompressionBrotli:
+		return "br"
+	default:
+		return ""
+	}
+}
 
 const (
-	CompressionNone = CompressionMethod(compress.None)
-	CompressionLZ4  = CompressionMethod(compress.LZ4)
-	CompressionZSTD = CompressionMethod(compress.ZSTD)
+	CompressionNone    = CompressionMethod(compress.None)
+	CompressionLZ4     = CompressionMethod(compress.LZ4)
+	CompressionZSTD    = CompressionMethod(compress.ZSTD)
+	CompressionGZIP    = CompressionMethod(0x95)
+	CompressionDeflate = CompressionMethod(0x96)
+	CompressionBrotli  = CompressionMethod(0x97)
 )
+
+var compressionMap = map[string]CompressionMethod{
+	"none":    CompressionNone,
+	"zstd":    CompressionZSTD,
+	"lz4":     CompressionLZ4,
+	"gzip":    CompressionGZIP,
+	"deflate": CompressionDeflate,
+	"br":      CompressionBrotli,
+}
 
 type Auth struct { // has_control_character
 	Database string
@@ -45,6 +76,8 @@ type Auth struct { // has_control_character
 
 type Compression struct {
 	Method CompressionMethod
+	// this only applies to zlib and brotli compression algorithms
+	Level int
 }
 
 type ConnOpenStrategy uint8
@@ -59,8 +92,18 @@ type Protocol int
 const (
 	Native Protocol = iota
 	HTTP
-	HTTPS
 )
+
+func (p Protocol) String() string {
+	switch p {
+	case Native:
+		return "native"
+	case HTTP:
+		return "http"
+	default:
+		return ""
+	}
+}
 
 func ParseDSN(dsn string) (*Options, error) {
 	opt := &Options{}
@@ -120,6 +163,29 @@ func (o *Options) fromDSN(in string) error {
 					Method: CompressionLZ4,
 				}
 			}
+			if compressMethod, ok := compressionMap[params.Get(v)]; ok {
+				if o.Compression == nil {
+					o.Compression = &Compression{
+						Method: compressMethod,
+						// default for now same as Clickhouse - https://clickhouse.com/docs/en/operations/settings/settings#settings-http_zlib_compression_level
+						Level: 3,
+					}
+				} else {
+					o.Compression.Method = compressMethod
+				}
+			}
+		case "compress_level":
+			if level, err := strconv.ParseInt(params.Get(v), 10, 8); err == nil {
+				if o.Compression == nil {
+					o.Compression = &Compression{
+						// a level alone doesn't enable compression
+						Method: CompressionNone,
+						Level:  int(level),
+					}
+				} else {
+					o.Compression.Level = int(level)
+				}
+			}
 		case "dial_timeout":
 			duration, err := time.ParseDuration(params.Get(v))
 			if err != nil {
@@ -173,9 +239,9 @@ func (o *Options) fromDSN(in string) error {
 		o.Protocol = HTTP
 	case "https":
 		if !secure {
-			return fmt.Errorf("clickhouse [dsn parse]: https without TLS specify")
+			return fmt.Errorf("clickhouse [dsn parse]: https without TLS")
 		}
-		o.Protocol = HTTPS
+		o.Protocol = HTTP
 	default:
 		o.Protocol = Native
 	}

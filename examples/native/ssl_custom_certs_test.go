@@ -15,43 +15,48 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
-	"fmt"
-	"time"
-
+	"crypto/tls"
+	"crypto/x509"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"io/ioutil"
+	"testing"
 )
 
-func main() {
-	conn := clickhouse.OpenDB(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
+func sslCustomCertsVersion() (string, error) {
+	t := &tls.Config{}
+	caCert, err := ioutil.ReadFile("play.clickhouse.pem")
+	if err != nil {
+		return "", err
+	}
+	caCertPool := x509.NewCertPool()
+	successful := caCertPool.AppendCertsFromPEM(caCert)
+	if !successful {
+		return "", err
+	}
+	t.RootCAs = caCertPool
+
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{"play.clickhouse.com:9440"},
+		TLS:  t,
 		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
+			Username: "explorer",
 		},
-		Settings: clickhouse.Settings{
-			"max_execution_time": 60,
-		},
-		DialTimeout: 5 * time.Second,
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
-		//Debug: true,
 	})
-	if err := conn.Ping(); err != nil {
-		fmt.Printf("1: %v\n", err)
+	if err != nil {
+		return "", err
 	}
-	row := conn.QueryRow("SELECT 1")
-	var one int
-	if err := row.Scan(&one); err != nil {
-		fmt.Printf("2: %v\n", err)
+	v, err := conn.ServerVersion()
+	if err != nil {
+		return "", err
 	}
-	fmt.Printf("3: %v\n", one)
-	if err := conn.Close(); err != nil {
-		fmt.Printf("4: %v\n", err)
-	}
-	fmt.Printf("5\n")
+	return v.String(), nil
+}
+
+func TestSSLCustomCerts(t *testing.T) {
+	_, err := sslCustomCertsVersion()
+	require.NoError(t, err)
 }
