@@ -24,6 +24,9 @@ func testProgressProfile() error {
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},
+		Settings: clickhouse.Settings{
+			"send_logs_level": "trace",
+		},
 	})
 
 	if err != nil {
@@ -36,20 +39,18 @@ func testProgressProfile() error {
 		totalRows += p.Rows
 	}), clickhouse.WithProfileInfo(func(p *clickhouse.ProfileInfo) {
 		fmt.Println("profile info: ", p)
+	}), clickhouse.WithLogs(func(log *clickhouse.Log) {
+		fmt.Println("log info: ", log)
 	}))
 
 	rows, err := conn.Query(ctx, "SELECT number from system.numbers LIMIT 10000000")
 	if err != nil {
 		return err
 	}
-	var (
-		col1 uint64
-	)
 	for rows.Next() {
 	}
 
 	fmt.Printf("Total Rows: %d\n", totalRows)
-	fmt.Printf("Total: %d\n", col1)
 	rows.Close()
 	return rows.Err()
 }
