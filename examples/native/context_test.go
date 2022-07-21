@@ -21,14 +21,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/google/uuid"
+	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
 	"github.com/stretchr/testify/require"
+	"net"
 	"testing"
+	"time"
 )
 
-func testUUID() error {
+func testContext() error {
 	var (
-		ctx       = context.Background()
+		dialCount int
+
 		conn, err = clickhouse.Open(&clickhouse.Options{
 			Addr: []string{"127.0.0.1:9000"},
 			Auth: clickhouse.Auth{
@@ -36,51 +39,62 @@ func testUUID() error {
 				Username: "default",
 				Password: "",
 			},
+			DialContext: func(ctx context.Context, addr string) (net.Conn, error) {
+				dialCount++
+				var d net.Dialer
+				return d.DialContext(ctx, "tcp", addr)
+			},
 		})
 	)
 	if err != nil {
 		return err
 	}
+	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
+		return nil
+	}
+
+	ctx := clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
+		"allow_experimental_object_type": "1",
+	}))
 	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
+	// to create a JSON column we need allow_experimental_object_type=1
 	if err = conn.Exec(ctx, `
 		CREATE TABLE example (
-				col1 UUID,
-				col2 UUID
+				Col1 JSON
 			) 
 			Engine Memory
 		`); err != nil {
 		return err
 	}
 
-	batch, err := conn.PrepareBatch(ctx, "INSERT INTO example")
 	if err != nil {
 		return err
 	}
-	col1Data, _ := uuid.NewUUID()
-	if err = batch.Append(
-		col1Data,
-		"603966d6-ed93-11ec-8ea0-0242ac120002",
-	); err != nil {
-		return err
-	}
 
-	if err = batch.Send(); err != nil {
-		return err
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	var (
-		col1 uuid.UUID
-		col2 uuid.UUID
-	)
-
-	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2); err != nil {
-		return err
+	go func() {
+		cancel()
+	}()
+	start := time.Now()
+	// query is cancelled with context
+	if err = conn.QueryRow(ctx, "SELECT sleep(10)").Scan(); err == nil {
+		return fmt.Errorf("expected cancel")
 	}
-	fmt.Printf("col1=%v, col2=%v\n", col1, col2)
+	fmt.Printf("cancelled after %v and %d dial\n", time.Since(start), dialCount)
+
+	// set a deadline for a query
+	ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	if err := conn.Ping(ctx); err == nil {
+		return fmt.Errorf("expected deadline exceeeded")
+	}
+	fmt.Printf("deadline exceeded %s\n", err)
+
 	return nil
 }
 
-func TestUUID(t *testing.T) {
-	require.NoError(t, testUUID())
+func TestContext(t *testing.T) {
+	require.NoError(t, testContext())
 }

@@ -29,6 +29,7 @@ import (
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
+
 func checkMinServerVersion(conn *sql.DB, major, minor, patch uint64) error {
 	var version struct {
 		Major uint64

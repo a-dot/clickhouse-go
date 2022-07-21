@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
@@ -45,6 +46,9 @@ func asyncInsert() error {
 	)
 	if err != nil {
 		return err
+	}
+	if err := clickhouse_tests.CheckMinServerVersion(conn, 21, 12, 0); err != nil {
+		return nil
 	}
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")

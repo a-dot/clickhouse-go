@@ -21,12 +21,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"math/big"
 	"testing"
 )
 
-func testUUID() error {
+func testBigInt() error {
 	var (
 		ctx       = context.Background()
 		conn, err = clickhouse.Open(&clickhouse.Options{
@@ -45,11 +45,14 @@ func testUUID() error {
 
 	if err = conn.Exec(ctx, `
 		CREATE TABLE example (
-				col1 UUID,
-				col2 UUID
-			) 
-			Engine Memory
-		`); err != nil {
+			Col1 Int128, 
+			Col2 UInt128, 
+			Col3 Array(Int128), 
+			Col4 Int256, 
+			Col5 Array(Int256), 
+			Col6 UInt256, 
+			Col7 Array(UInt256)
+		) Engine Memory`); err != nil {
 		return err
 	}
 
@@ -57,11 +60,28 @@ func testUUID() error {
 	if err != nil {
 		return err
 	}
-	col1Data, _ := uuid.NewUUID()
-	if err = batch.Append(
-		col1Data,
-		"603966d6-ed93-11ec-8ea0-0242ac120002",
-	); err != nil {
+
+	col1Data, _ := new(big.Int).SetString("170141183460469231731687303715884105727", 10)
+	col2Data := big.NewInt(128)
+	col3Data := []*big.Int{
+		big.NewInt(-128),
+		big.NewInt(128128),
+		big.NewInt(128128128),
+	}
+	col4Data := big.NewInt(256)
+	col5Data := []*big.Int{
+		big.NewInt(256),
+		big.NewInt(256256),
+		big.NewInt(256256256256),
+	}
+	col6Data := big.NewInt(256)
+	col7Data := []*big.Int{
+		big.NewInt(256),
+		big.NewInt(256256),
+		big.NewInt(256256256256),
+	}
+
+	if err = batch.Append(col1Data, col2Data, col3Data, col4Data, col5Data, col6Data, col7Data); err != nil {
 		return err
 	}
 
@@ -70,17 +90,22 @@ func testUUID() error {
 	}
 
 	var (
-		col1 uuid.UUID
-		col2 uuid.UUID
+		col1 big.Int
+		col2 big.Int
+		col3 []*big.Int
+		col4 big.Int
+		col5 []*big.Int
+		col6 big.Int
+		col7 []*big.Int
 	)
 
-	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2); err != nil {
+	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2, &col3, &col4, &col5, &col6, &col7); err != nil {
 		return err
 	}
-	fmt.Printf("col1=%v, col2=%v\n", col1, col2)
+	fmt.Printf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v, col7=%v\n", col1, col2, col3, col4, col5, col6, col7)
 	return nil
 }
 
-func TestUUID(t *testing.T) {
-	require.NoError(t, testUUID())
+func TestBigInt(t *testing.T) {
+	require.NoError(t, testBigInt())
 }

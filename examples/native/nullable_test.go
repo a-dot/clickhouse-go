@@ -15,18 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"testing"
 )
 
-func example() error {
+func testNullable() error {
 	var (
 		ctx       = context.Background()
 		conn, err = clickhouse.Open(&clickhouse.Options{
@@ -41,60 +40,45 @@ func example() error {
 	if err != nil {
 		return err
 	}
+	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
-	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
+	if err = conn.Exec(ctx, `
+		CREATE TABLE example (
+				col1 Nullable(String),
+				col2 String
+			) 
+			Engine Memory
+		`); err != nil {
 		return err
 	}
-	const ddl = `
-	CREATE TABLE example (
-		  Col1 UInt8
-		, Col2 String
-		, Col3 DateTime
-	) ENGINE = Memory
-	`
-	if err := conn.Exec(ctx, ddl); err != nil {
+
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO example")
+	if err != nil {
 		return err
 	}
-	datetime := time.Now()
-	{
-		batch, err := conn.PrepareBatch(ctx, "INSERT INTO example")
-		if err != nil {
-			return err
-		}
-		for i := 0; i < 10; i++ {
-			if err := batch.Append(uint8(i), "ClickHouse Inc.", datetime); err != nil {
-				return err
-			}
-		}
-		if err := batch.Send(); err != nil {
-			return err
-		}
+	if err = batch.Append(
+		nil,
+		nil,
+	); err != nil {
+		return err
 	}
 
-	var result struct {
-		Col1 uint8
-		Col2 string
-		Col3 time.Time
+	if err = batch.Send(); err != nil {
+		return err
 	}
-	{
-		if err := conn.QueryRow(ctx, `SELECT * FROM example WHERE Col1 = $1 AND Col3 = $2`, 2, datetime).ScanStruct(&result); err != nil {
-			return err
-		}
-		fmt.Println(result)
+
+	var (
+		col1 *string
+		col2 string
+	)
+
+	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2); err != nil {
+		return err
 	}
-	{
-		if err := conn.QueryRow(ctx, `SELECT * FROM example WHERE Col1 = @Col1 AND Col3 = @Col2`,
-			clickhouse.Named("Col1", 4),
-			clickhouse.Named("Col2", datetime),
-		).ScanStruct(&result); err != nil {
-			return err
-		}
-		fmt.Println(result)
-	}
+	fmt.Printf("col1=%v, col2=%v\n", col1, col2)
 	return nil
 }
-func main() {
-	if err := example(); err != nil {
-		log.Fatal(err)
-	}
+
+func TestNullable(t *testing.T) {
+	require.NoError(t, testNullable())
 }

@@ -20,13 +20,13 @@ package examples
 import (
 	"context"
 	"fmt"
-	"log"
-	"time"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
 )
 
-func queryRows() error {
+func testBind() error {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"127.0.0.1:9000"},
 		Auth: clickhouse.Auth{
@@ -34,37 +34,20 @@ func queryRows() error {
 			Username: "default",
 			Password: "",
 		},
-		//Debug:           true,
-		DialTimeout:     time.Second,
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: time.Hour,
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
 	})
 	if err != nil {
 		return err
 	}
-	ctx := clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
-		"max_block_size": 10,
-	}), clickhouse.WithProgress(func(p *clickhouse.Progress) {
-		fmt.Println("progress: ", p)
-	}), clickhouse.WithProfileInfo(func(p *clickhouse.ProfileInfo) {
-		fmt.Println("profile info: ", p)
-	}))
-	if err := conn.Ping(ctx); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			fmt.Printf("Catch exception [%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
-		}
-		return err
-	}
+	ctx := context.Background()
+	defer func() {
+		conn.Exec(ctx, "DROP TABLE example")
+	}()
 	if err := conn.Exec(ctx, `DROP TABLE IF EXISTS example`); err != nil {
 		return err
 	}
 	err = conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS example (
-			Col1 UInt8,
+			Col1 UInt32,
 			Col2 String,
 			Col3 DateTime
 		) engine=Memory
@@ -76,36 +59,37 @@ func queryRows() error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < 10; i++ {
-		if err := batch.Append(uint8(i), fmt.Sprintf("value_%d", i), time.Now()); err != nil {
+	now := time.Now()
+	for i := 0; i < 1000; i++ {
+		if err := batch.Append(uint32(i), fmt.Sprintf("value_%d", i), now.Add(time.Duration(i)*time.Second)); err != nil {
 			return err
 		}
 	}
 	if err := batch.Send(); err != nil {
 		return err
 	}
-
-	rows, err := conn.Query(ctx, "SELECT Col1, Col2, Col3 FROM example WHERE Col1 >= $1 AND Col2 <> $2 AND Col3 <= $3", 0, "xxx", time.Now())
-	if err != nil {
+	var count uint64
+	// positional bind
+	if err = conn.QueryRow(ctx, "SELECT count() FROM example WHERE Col1 >= ? AND Col3 < ?", 500, now.Add(time.Duration(750)*time.Second)).Scan(&count); err != nil {
 		return err
 	}
-	for rows.Next() {
-		var (
-			col1 uint8
-			col2 string
-			col3 time.Time
-		)
-		if err := rows.Scan(&col1, &col2, &col3); err != nil {
-			return err
-		}
-		fmt.Printf("row: col1=%d, col2=%s, col3=%s\n", col1, col2, col3)
+	// 250
+	fmt.Printf("Positional bind count: %d\n", count)
+	// numeric bind
+	if err = conn.QueryRow(ctx, "SELECT count() FROM example WHERE Col1 <= $2 AND Col3 > $1", now.Add(time.Duration(150)*time.Second), 250).Scan(&count); err != nil {
+		return err
 	}
-	rows.Close()
-	return rows.Err()
+	// 100
+	fmt.Printf("Numeric bind count: %d\n", count)
+	// named bind
+	if err = conn.QueryRow(ctx, "SELECT count() FROM example WHERE Col1 <= @col1 AND Col3 > @col3", clickhouse.Named("col1", 100), clickhouse.Named("col3", now.Add(time.Duration(50)*time.Second))).Scan(&count); err != nil {
+		return err
+	}
+	// 50
+	fmt.Printf("Named bind count: %d\n", count)
+	return nil
 }
 
-func main() {
-	if err := queryRows(); err != nil {
-		log.Fatal(err)
-	}
+func TestBind(t *testing.T) {
+	require.NoError(t, testBind())
 }

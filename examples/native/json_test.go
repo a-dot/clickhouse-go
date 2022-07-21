@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -43,6 +44,9 @@ func testInsertReadJSON() error {
 			},
 		})
 	)
+	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -127,6 +131,10 @@ func testReadComplexJSON() error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
+		return nil
 	}
 	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
