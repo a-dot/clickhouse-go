@@ -79,7 +79,7 @@ func testContext() error {
 	}()
 	start := time.Now()
 	// query is cancelled with context
-	if err = conn.QueryRow(ctx, "SELECT sleep(10)").Scan(); err == nil {
+	if err = conn.QueryRow(ctx, "SELECT sleep(3)").Scan(); err == nil {
 		return fmt.Errorf("expected cancel")
 	}
 	fmt.Printf("cancelled after %v and %d dial\n", time.Since(start), dialCount)
