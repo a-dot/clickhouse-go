@@ -101,7 +101,7 @@ func testContext() error {
 	}()
 	ctx = clickhouse.Context(context.Background(), clickhouse.WithQuotaKey("abcde"))
 	// set a quota key - first create the quota
-	if err = conn.Exec(ctx, "CREATE QUOTA IF NOT EXISTS foobar KEYED BY client_key FOR INTERVAL 1 minute MAX queries = 5 TO CURRENT_USER"); err != nil {
+	if err = conn.Exec(ctx, "CREATE QUOTA IF NOT EXISTS foobar KEYED BY client_key FOR INTERVAL 1 minute MAX queries = 5 TO default"); err != nil {
 		return err
 	}
 
