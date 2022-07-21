@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"net"
 	"testing"
@@ -52,10 +53,11 @@ func testContext() error {
 	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
 		return nil
 	}
-
+	// we can use context to pass settings to a specific API call
 	ctx := clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
 		"allow_experimental_object_type": "1",
 	}))
+
 	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
 	// to create a JSON column we need allow_experimental_object_type=1
@@ -68,30 +70,50 @@ func testContext() error {
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
+	// queries can be cancelled using the context - note this doesn't KILL the query just terminates the connection
 	ctx, cancel := context.WithCancel(context.Background())
-
 	go func() {
 		cancel()
 	}()
-	start := time.Now()
-	// query is cancelled with context
 	if err = conn.QueryRow(ctx, "SELECT sleep(3)").Scan(); err == nil {
 		return fmt.Errorf("expected cancel")
 	}
-	fmt.Printf("cancelled after %v and %d dial\n", time.Since(start), dialCount)
 
-	// set a deadline for a query
+	// set a deadline for a query - this will cancel the query after the absolute time is reached. Again terminates the connection only,
+	// queries will continue to completion in ClickHouse
 	ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	if err := conn.Ping(ctx); err == nil {
 		return fmt.Errorf("expected deadline exceeeded")
 	}
-	fmt.Printf("deadline exceeded %s\n", err)
 
+	// set a query id to assist tracing queries in logs e.g. see system.query_log
+	var one uint8
+	queryId, _ := uuid.NewUUID()
+	ctx = clickhouse.Context(context.Background(), clickhouse.WithQueryID(queryId.String()))
+	if err = conn.QueryRow(ctx, "SELECT 1").Scan(&one); err != nil {
+		return err
+	}
+
+	conn.Exec(context.Background(), "DROP QUOTA IF EXISTS foobar")
+	defer func() {
+		conn.Exec(context.Background(), "DROP QUOTA IF EXISTS foobar")
+	}()
+	ctx = clickhouse.Context(context.Background(), clickhouse.WithQuotaKey("abcde"))
+	// set a quota key - first create the quota
+	if err = conn.Exec(ctx, "CREATE QUOTA IF NOT EXISTS foobar KEYED BY client_key FOR INTERVAL 1 minute MAX queries = 5 TO CURRENT_USER"); err != nil {
+		return err
+	}
+
+	type Number struct {
+		Number uint64 `ch:"number"`
+	}
+	for i := 1; i <= 6; i++ {
+		var result []Number
+		if err = conn.Select(ctx, &result, "SELECT number FROM numbers(10)"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
