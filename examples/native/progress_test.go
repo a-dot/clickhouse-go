@@ -43,7 +43,7 @@ func testProgressProfile() error {
 		fmt.Println("log info: ", log)
 	}))
 
-	rows, err := conn.Query(ctx, "SELECT number from system.numbers LIMIT 10000000")
+	rows, err := conn.Query(ctx, "SELECT number from numbers(10000000) LIMIT 10000000")
 	if err != nil {
 		return err
 	}
