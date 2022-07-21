@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"log"
-	"reflect"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/stretchr/testify/require"
+	"reflect"
+	"testing"
 )
 
-func example() error {
+func dynamicScan() error {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"127.0.0.1:9000"},
 		Auth: clickhouse.Auth{
@@ -69,8 +69,7 @@ func example() error {
 	}
 	return nil
 }
-func main() {
-	if err := example(); err != nil {
-		log.Fatal(err)
-	}
+
+func TestDynamicScan(t *testing.T) {
+	require.NoError(t, dynamicScan())
 }
