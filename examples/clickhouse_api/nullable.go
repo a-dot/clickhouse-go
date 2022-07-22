@@ -15,35 +15,54 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package clickhouse_api
 
 import (
+	"context"
 	"fmt"
-	"math/rand"
-	"os"
-	"time"
-
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func CheckMinServerVersion(conn driver.Conn, major, minor, patch uint64) error {
-	v, err := conn.ServerVersion()
+func NullableInsertRead() error {
+	conn, err := GetConnection(nil, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	if v.Version.Major < major || (v.Version.Major == major && v.Version.Minor < minor) || (v.Version.Major == major && v.Version.Minor == minor && v.Version.Patch < patch) {
-		return fmt.Errorf("unsupported server version %d.%d < %d.%d", v.Version.Major, v.Version.Minor, major, minor)
-	}
-	return nil
-}
+	ctx := context.Background()
+	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
-func GetEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
+	if err = conn.Exec(ctx, `
+		CREATE TABLE example (
+				col1 Nullable(String),
+				col2 String
+			) 
+			Engine Memory
+		`); err != nil {
+		return err
 	}
-	return fallback
+
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO example")
+	if err != nil {
+		return err
+	}
+	if err = batch.Append(
+		nil,
+		nil,
+	); err != nil {
+		return err
+	}
+
+	if err = batch.Send(); err != nil {
+		return err
+	}
+
+	var (
+		col1 *string
+		col2 string
+	)
+
+	if err = conn.QueryRow(ctx, "SELECT * FROM example").Scan(&col1, &col2); err != nil {
+		return err
+	}
+	fmt.Printf("col1=%v, col2=%v\n", col1, col2)
+	return nil
 }

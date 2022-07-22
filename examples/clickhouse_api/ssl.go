@@ -15,35 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package clickhouse_api
 
 import (
+	"crypto/tls"
 	"fmt"
-	"math/rand"
-	"os"
-	"time"
-
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func CheckMinServerVersion(conn driver.Conn, major, minor, patch uint64) error {
+func SSLVersion() error {
+	var (
+		conn, err = clickhouse.Open(&clickhouse.Options{
+			Addr: []string{"play.clickhouse.com:9440"},
+			TLS:  &tls.Config{},
+			Auth: clickhouse.Auth{
+				Username: "explorer",
+			},
+		})
+	)
+	if err != nil {
+		return err
+	}
 	v, err := conn.ServerVersion()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	if v.Version.Major < major || (v.Version.Major == major && v.Version.Minor < minor) || (v.Version.Major == major && v.Version.Minor == minor && v.Version.Patch < patch) {
-		return fmt.Errorf("unsupported server version %d.%d < %d.%d", v.Version.Major, v.Version.Minor, major, minor)
-	}
+	fmt.Println(v.String())
 	return nil
-}
-
-func GetEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
 }

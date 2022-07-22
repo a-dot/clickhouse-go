@@ -15,35 +15,47 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package clickhouse_api
 
 import (
+	"context"
 	"fmt"
-	"math/rand"
-	"os"
-	"time"
-
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"reflect"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func CheckMinServerVersion(conn driver.Conn, major, minor, patch uint64) error {
-	v, err := conn.ServerVersion()
+func DynamicScan() error {
+	conn, err := GetConnection(nil, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	if v.Version.Major < major || (v.Version.Major == major && v.Version.Minor < minor) || (v.Version.Major == major && v.Version.Minor == minor && v.Version.Patch < patch) {
-		return fmt.Errorf("unsupported server version %d.%d < %d.%d", v.Version.Major, v.Version.Minor, major, minor)
+	const query = `
+	SELECT
+		   1     AS Col1
+		, 'Text' AS Col2
+	`
+	rows, err := conn.Query(context.TODO(), query)
+	if err != nil {
+		return err
+	}
+	var (
+		columnTypes = rows.ColumnTypes()
+		vars        = make([]interface{}, len(columnTypes))
+	)
+	for i := range columnTypes {
+		vars[i] = reflect.New(columnTypes[i].ScanType()).Interface()
+	}
+	for rows.Next() {
+		if err := rows.Scan(vars...); err != nil {
+			return err
+		}
+		for _, v := range vars {
+			switch v := v.(type) {
+			case *string:
+				fmt.Println(*v)
+			case *uint8:
+				fmt.Println(*v)
+			}
+		}
 	}
 	return nil
-}
-
-func GetEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
 }

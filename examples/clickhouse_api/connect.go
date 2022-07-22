@@ -15,35 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package clickhouse_api
 
 import (
 	"fmt"
-	"math/rand"
-	"os"
-	"time"
-
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func CheckMinServerVersion(conn driver.Conn, major, minor, patch uint64) error {
-	v, err := conn.ServerVersion()
+func Version() error {
+	port := clickhouse_tests.GetEnv("CLICKHOUSE_PORT", "9000")
+	host := clickhouse_tests.GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := clickhouse_tests.GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := clickhouse_tests.GetEnv("CLICKHOUSE_PASSWORD", "")
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:%s", host, port)},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: username,
+			Password: password,
+		},
+	})
 	if err != nil {
-		panic(err)
+		return err
 	}
-	if v.Version.Major < major || (v.Version.Major == major && v.Version.Minor < minor) || (v.Version.Major == major && v.Version.Minor == minor && v.Version.Patch < patch) {
-		return fmt.Errorf("unsupported server version %d.%d < %d.%d", v.Version.Major, v.Version.Minor, major, minor)
+	v, err := conn.ServerVersion()
+	fmt.Println(v)
+	if err != nil {
+		return err
 	}
 	return nil
-}
-
-func GetEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
 }
