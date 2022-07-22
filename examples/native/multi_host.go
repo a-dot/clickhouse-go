@@ -18,38 +18,55 @@
 package examples
 
 import (
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
-func multiHostVersion() (string, error) {
-	var (
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9001", "127.0.0.1:9002", "127.0.0.1:9000"},
-		})
-	)
+func multiHostVersion() error {
+	port := GetEnv("CLICKHOUSE_PORT", "9000")
+	host := GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := GetEnv("CLICKHOUSE_PASSWORD", "")
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{"127.0.0.1:9001", "127.0.0.1:9002", fmt.Sprintf("%s:%s", host, port)},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: username,
+			Password: password,
+		},
+	})
 	if err != nil {
-		return "", err
+		return err
 	}
 	v, err := conn.ServerVersion()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return v.String(), nil
+	fmt.Println(v.String())
+	return nil
 }
 
-func multiHostRoundRobinVersion() (string, error) {
-	var (
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr:             []string{"127.0.0.1:9001", "127.0.0.1:9002", "127.0.0.1:9000"},
-			ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
-		})
-	)
+func multiHostRoundRobinVersion() error {
+	port := GetEnv("CLICKHOUSE_PORT", "9000")
+	host := GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := GetEnv("CLICKHOUSE_PASSWORD", "")
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr:             []string{"127.0.0.1:9001", "127.0.0.1:9002", fmt.Sprintf("%s:%s", host, port)},
+		ConnOpenStrategy: clickhouse.ConnOpenRoundRobin,
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: username,
+			Password: password,
+		},
+	})
 	if err != nil {
-		return "", err
+		return err
 	}
 	v, err := conn.ServerVersion()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return v.String(), nil
+	fmt.Println(v.String())
+	return nil
 }

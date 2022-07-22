@@ -18,9 +18,78 @@
 package examples
 
 import (
+	"context"
+	"fmt"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+	"os"
+	"path"
+	"strings"
 	"testing"
 )
+
+const defaultClickHouseVersion = "latest"
+
+func GetClickHouseTestVersion() string {
+	return GetEnv("CLICKHOUSE_VERSION", defaultClickHouseVersion)
+}
+
+func TestMain(m *testing.M) {
+	useDocker := strings.ToLower(GetEnv("CLICKHOUSE_USE_DOCKER", "true"))
+	if useDocker == "false" {
+		fmt.Printf("Using external ClickHouse for IT tests -  %s:%s\n",
+			GetEnv("CLICKHOUSE_PORT", "9000"), GetEnv("CLICKHOUSE_HOST", "localhost"))
+		os.Exit(m.Run())
+	}
+	// create a ClickHouse container
+	ctx := context.Background()
+	// attempt use docker for CI
+	provider, err := testcontainers.ProviderDocker.GetProvider()
+	if err != nil {
+		fmt.Printf("Docker is not running and no clickhouse connections details were provided. Skipping tests: %s\n", err)
+		os.Exit(0)
+	}
+	err = provider.Health(ctx)
+	if err != nil {
+		fmt.Printf("Docker is not running and no clickhouse connections details were provided. Skipping IT tests: %s\n", err)
+		os.Exit(0)
+	}
+	fmt.Printf("Using Docker for IT tests\n")
+	cwd, err := os.Getwd()
+	if err != nil {
+		// can't test without container
+		panic(err)
+	}
+	req := testcontainers.ContainerRequest{
+		Image:        fmt.Sprintf("clickhouse/clickhouse-server:%s", GetClickHouseTestVersion()),
+		ExposedPorts: []string{"9000/tcp", "8123/tcp"},
+		WaitingFor:   wait.ForLog("Ready for connections"),
+		Mounts: []testcontainers.ContainerMount{
+			testcontainers.BindMount(path.Join(cwd, "../../tests/resources/custom.xml"), "/etc/clickhouse-server/config.d/custom.xml"),
+			testcontainers.BindMount(path.Join(cwd, "../../tests/resources/admin.xml"), "/etc/clickhouse-server/users.d/admin.xml"),
+		},
+	}
+	clickhouseContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		// can't test without container
+		panic(err)
+	}
+
+	p, _ := clickhouseContainer.MappedPort(ctx, "9000")
+	os.Setenv("CLICKHOUSE_PORT", p.Port())
+	os.Setenv("CLICKHOUSE_HOST", "localhost")
+	defer clickhouseContainer.Terminate(ctx) //nolint
+	os.Exit(m.Run())
+}
+
+func TestJSON(t *testing.T) {
+	require.NoError(t, insertReadJSON())
+	require.NoError(t, readComplexJSON())
+}
 
 func TestOpenTelemetry(t *testing.T) {
 	require.NoError(t, openTelemetry())
@@ -47,8 +116,7 @@ func TestBatchInsert(t *testing.T) {
 }
 
 func TestAuthConnect(t *testing.T) {
-	_, err := authVersion()
-	require.NoError(t, err)
+	require.NoError(t, authVersion())
 }
 
 func TestBigInt(t *testing.T) {
@@ -68,8 +136,7 @@ func TestColumnInsert(t *testing.T) {
 }
 
 func TestConnect(t *testing.T) {
-	_, err := version()
-	require.NoError(t, err)
+	require.NoError(t, version())
 }
 
 func TestZSTDCompression(t *testing.T) {
@@ -101,12 +168,7 @@ func TestExec(t *testing.T) {
 }
 
 func TestGeo(t *testing.T) {
-	require.NoError(t, testGeo())
-}
-
-func TestJSON(t *testing.T) {
-	require.NoError(t, insertReadJSON())
-	require.NoError(t, readComplexJSON())
+	require.NoError(t, geoInsertRead())
 }
 
 func TestMapInsertRead(t *testing.T) {
@@ -114,10 +176,8 @@ func TestMapInsertRead(t *testing.T) {
 }
 
 func TestMultiHostConnect(t *testing.T) {
-	_, err := multiHostVersion()
-	require.NoError(t, err)
-	_, err = multiHostRoundRobinVersion()
-	require.NoError(t, err)
+	require.NoError(t, multiHostVersion())
+	require.NoError(t, multiHostRoundRobinVersion())
 }
 
 func TestNested(t *testing.T) {
@@ -142,13 +202,11 @@ func TestSelectStruct(t *testing.T) {
 }
 
 func TestSSL(t *testing.T) {
-	_, err := sslVersion()
-	require.NoError(t, err)
+	require.NoError(t, sslVersion())
 }
 
 func TestSSLCustomCerts(t *testing.T) {
-	_, err := sslCustomCertsVersion()
-	require.NoError(t, err)
+	require.NoError(t, sslCustomCertsVersion())
 }
 
 func TestTypeConvert(t *testing.T) {
@@ -168,6 +226,5 @@ func TestQueryRows(t *testing.T) {
 }
 
 func TestSSLNoVerify(t *testing.T) {
-	_, err := sslNoVerifyVersion()
-	require.NoError(t, err)
+	require.NoError(t, sslNoVerifyVersion())
 }

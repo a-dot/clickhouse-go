@@ -20,19 +20,11 @@ package examples
 import (
 	"context"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"time"
 )
 
 func queryRows() error {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
-		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
-		},
-	})
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}

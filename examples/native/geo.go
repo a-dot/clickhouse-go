@@ -24,24 +24,14 @@ import (
 	"github.com/paulmach/orb"
 )
 
-func testGeo() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			Settings: clickhouse.Settings{
-				"allow_experimental_geo_types": 1,
-			},
-		})
-	)
+func geoInsertRead() error {
+	conn, err := getConnection(clickhouse.Settings{
+		"allow_experimental_geo_types": 1,
+	}, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
 	if err = conn.Exec(ctx, `

@@ -20,25 +20,15 @@ package examples
 import (
 	"context"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 )
 
 func testUUID() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 
 	if err = conn.Exec(ctx, `

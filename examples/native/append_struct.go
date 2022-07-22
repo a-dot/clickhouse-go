@@ -19,7 +19,6 @@ package examples
 
 import (
 	"context"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"time"
 )
 
@@ -32,20 +31,11 @@ type row struct {
 }
 
 func appendStruct() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")
 	}()

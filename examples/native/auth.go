@@ -18,26 +18,21 @@
 package examples
 
 import (
-	"github.com/ClickHouse/clickhouse-go/v2"
+	"fmt"
 )
 
-func authVersion() (string, error) {
-	var (
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-		})
-	)
+func authVersion() error {
+	conn, err := getConnection(nil, nil)
 	if err != nil {
-		return "", err
+		return err
+	}
+	if err != nil {
+		return err
 	}
 	v, err := conn.ServerVersion()
+	fmt.Println(v)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return v.String(), nil
+	return nil
 }

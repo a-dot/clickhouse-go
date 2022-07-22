@@ -25,17 +25,7 @@ import (
 )
 
 func openTelemetry() error {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
-		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
-		},
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
-	})
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}

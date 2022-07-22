@@ -19,24 +19,14 @@ package examples
 
 import (
 	"context"
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"time"
 )
 
 func convertedInsert() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr:            []string{"127.0.0.1:9000"},
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(context.Background(), "DROP TABLE example")
 	}()

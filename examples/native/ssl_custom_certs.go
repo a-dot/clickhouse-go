@@ -20,20 +20,21 @@ package examples
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"io/ioutil"
 )
 
-func sslCustomCertsVersion() (string, error) {
+func sslCustomCertsVersion() error {
 	t := &tls.Config{}
 	caCert, err := ioutil.ReadFile("play.clickhouse.pem")
 	if err != nil {
-		return "", err
+		return err
 	}
 	caCertPool := x509.NewCertPool()
 	successful := caCertPool.AppendCertsFromPEM(caCert)
 	if !successful {
-		return "", err
+		return err
 	}
 	t.RootCAs = caCertPool
 
@@ -45,11 +46,12 @@ func sslCustomCertsVersion() (string, error) {
 		},
 	})
 	if err != nil {
-		return "", err
+		return err
 	}
 	v, err := conn.ServerVersion()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return v.String(), nil
+	fmt.Println(v.String())
+	return nil
 }

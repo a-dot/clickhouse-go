@@ -20,16 +20,13 @@ package examples
 import (
 	"context"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
 	"strconv"
 	"time"
 )
 
 func queryRow() error {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
-	})
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}

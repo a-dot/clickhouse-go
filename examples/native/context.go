@@ -28,15 +28,18 @@ import (
 )
 
 func useContext() error {
+	port := GetEnv("CLICKHOUSE_PORT", "9000")
+	host := GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := GetEnv("CLICKHOUSE_PASSWORD", "")
 	var (
 		dialCount int
-
 		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
+			Addr: []string{fmt.Sprintf("%s:%s", host, port)},
 			Auth: clickhouse.Auth{
 				Database: "default",
-				Username: "default",
-				Password: "",
+				Username: username,
+				Password: password,
 			},
 			DialContext: func(ctx context.Context, addr string) (net.Conn, error) {
 				dialCount++

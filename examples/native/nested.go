@@ -22,27 +22,16 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"strconv"
-	"time"
 )
 
 func nestedUnFlattened() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-			Settings: clickhouse.Settings{
-				"flatten_nested": 0,
-			},
-		})
-	)
+	conn, err := getConnection(clickhouse.Settings{
+		"flatten_nested": 0,
+	}, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")
 	}()
@@ -131,24 +120,15 @@ func nestedUnFlattened() error {
 }
 
 func nestedFlattened() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")
 	}()
-	conn.Exec(context.Background(), "DROP TABLE IF EXISTS example")
+	conn.Exec(ctx, "DROP TABLE IF EXISTS example")
 	err = conn.Exec(ctx, `
 		CREATE TABLE example (
 			Col1 Nested(Col1_1 String, Col1_2 UInt8),

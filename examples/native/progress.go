@@ -4,29 +4,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"time"
 )
 
 func progressProfileLogs() error {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
-		Auth: clickhouse.Auth{
-			Database: "default",
-			Username: "default",
-			Password: "",
-		},
-		DialTimeout:     time.Second,
-		MaxOpenConns:    10,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: time.Hour,
-		Compression: &clickhouse.Compression{
-			Method: clickhouse.CompressionLZ4,
-		},
-		Settings: clickhouse.Settings{
-			"send_logs_level": "trace",
-		},
-	})
-
+	conn, err := getConnection(clickhouse.Settings{
+		"send_logs_level": "trace",
+	}, nil)
+	if err != nil {
+		return err
+	}
 	if err != nil {
 		return err
 	}

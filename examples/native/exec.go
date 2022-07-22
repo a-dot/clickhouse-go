@@ -19,13 +19,10 @@ package examples
 
 import (
 	"context"
-	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
 func createCreateDrop() error {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"127.0.0.1:9000"},
-	})
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}

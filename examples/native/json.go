@@ -25,23 +25,13 @@ import (
 )
 
 func insertReadJSON() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			Compression: &clickhouse.Compression{
-				Method: clickhouse.CompressionLZ4,
-			},
-			Settings: clickhouse.Settings{
-				"allow_experimental_object_type": 1,
-			},
-		})
-	)
+	conn, err := getConnection(clickhouse.Settings{
+		"allow_experimental_object_type": 1,
+	}, nil)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
 	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
 		return nil
 	}
@@ -110,26 +100,13 @@ func insertReadJSON() error {
 }
 
 func readComplexJSON() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			Compression: &clickhouse.Compression{
-				Method: clickhouse.CompressionLZ4,
-			},
-			Settings: clickhouse.Settings{
-				"allow_experimental_object_type": 1,
-			},
-		})
-	)
+	conn, err := getConnection(clickhouse.Settings{
+		"allow_experimental_object_type": 1,
+	}, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 
 	if err := clickhouse_tests.CheckMinServerVersion(conn, 22, 6, 1); err != nil {
 		return nil

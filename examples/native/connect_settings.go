@@ -27,31 +27,38 @@ import (
 
 func pingWithSettings() error {
 	dialCount := 0
-	var (
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			DialContext: func(ctx context.Context, addr string) (net.Conn, error) {
-				dialCount++
-				var d net.Dialer
-				return d.DialContext(ctx, "tcp", addr)
-			},
-			Debug: true,
-			Debugf: func(format string, v ...interface{}) {
-				fmt.Printf(format, v)
-			},
-			Settings: clickhouse.Settings{
-				"max_execution_time": 60,
-			},
-			Compression: &clickhouse.Compression{
-				Method: clickhouse.CompressionLZ4,
-			},
-			DialTimeout:      time.Duration(10) * time.Second,
-			MaxOpenConns:     5,
-			MaxIdleConns:     5,
-			ConnMaxLifetime:  time.Duration(10) * time.Minute,
-			ConnOpenStrategy: clickhouse.ConnOpenInOrder,
-		})
-	)
+	port := GetEnv("CLICKHOUSE_PORT", "9000")
+	host := GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := GetEnv("CLICKHOUSE_PASSWORD", "")
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:%s", host, port)},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: username,
+			Password: password,
+		},
+		DialContext: func(ctx context.Context, addr string) (net.Conn, error) {
+			dialCount++
+			var d net.Dialer
+			return d.DialContext(ctx, "tcp", addr)
+		},
+		Debug: true,
+		Debugf: func(format string, v ...interface{}) {
+			fmt.Printf(format, v)
+		},
+		Settings: clickhouse.Settings{
+			"max_execution_time": 60,
+		},
+		Compression: &clickhouse.Compression{
+			Method: clickhouse.CompressionLZ4,
+		},
+		DialTimeout:      time.Duration(10) * time.Second,
+		MaxOpenConns:     5,
+		MaxIdleConns:     5,
+		ConnMaxLifetime:  time.Duration(10) * time.Minute,
+		ConnOpenStrategy: clickhouse.ConnOpenInOrder,
+	})
 	if err != nil {
 		return err
 	}

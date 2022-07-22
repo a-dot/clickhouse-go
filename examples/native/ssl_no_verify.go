@@ -19,10 +19,11 @@ package examples
 
 import (
 	"crypto/tls"
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
-func sslNoVerifyVersion() (string, error) {
+func sslNoVerifyVersion() error {
 	var (
 		conn, err = clickhouse.Open(&clickhouse.Options{
 			Addr: []string{"play.clickhouse.com:9440"},
@@ -35,11 +36,12 @@ func sslNoVerifyVersion() (string, error) {
 		})
 	)
 	if err != nil {
-		return "", err
+		return err
 	}
 	v, err := conn.ServerVersion()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return v.String(), nil
+	fmt.Println(v.String())
+	return nil
 }

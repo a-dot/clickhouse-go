@@ -20,31 +20,15 @@ package examples
 import (
 	"context"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
-	"time"
 )
 
 func asyncInsert() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	if err := clickhouse_tests.CheckMinServerVersion(conn, 21, 12, 0); err != nil {
 		return nil
 	}

@@ -19,30 +19,15 @@ package examples
 
 import (
 	"context"
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"time"
 )
 
 func columnInsert() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			//Debug:           true,
-			DialTimeout:     time.Second,
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: time.Hour,
-		})
-	)
+	conn, err := getConnection(nil, nil)
 	if err != nil {
 		return err
 	}
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")
 	}()

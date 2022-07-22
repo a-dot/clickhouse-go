@@ -19,27 +19,29 @@ package examples
 
 import (
 	"context"
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"strconv"
 )
 
 func compress() error {
-	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{"127.0.0.1:9000"},
-			Auth: clickhouse.Auth{
-				Database: "default",
-				Username: "default",
-				Password: "",
-			},
-			Compression: &clickhouse.Compression{
-				Method: clickhouse.CompressionZSTD,
-			},
-			MaxOpenConns: 1,
-		})
-	)
-
+	port := GetEnv("CLICKHOUSE_PORT", "9000")
+	host := GetEnv("CLICKHOUSE_HOST", "localhost")
+	username := GetEnv("CLICKHOUSE_USERNAME", "default")
+	password := GetEnv("CLICKHOUSE_PASSWORD", "")
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:%s", host, port)},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: username,
+			Password: password,
+		},
+		Compression: &clickhouse.Compression{
+			Method: clickhouse.CompressionZSTD,
+		},
+		MaxOpenConns: 1,
+	})
+	ctx := context.Background()
 	defer func() {
 		conn.Exec(ctx, "DROP TABLE example")
 	}()
