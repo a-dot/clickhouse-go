@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/examples/clickhouse_api"
+	"github.com/ClickHouse/clickhouse-go/v2/examples/std"
 	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -88,6 +89,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// ClickHouse API tests
+
 func TestJSON(t *testing.T) {
 	require.NoError(t, clickhouse_api.InsertReadJSON())
 	require.NoError(t, clickhouse_api.ReadComplexJSON())
@@ -138,7 +141,7 @@ func TestColumnInsert(t *testing.T) {
 }
 
 func TestConnect(t *testing.T) {
-	require.NoError(t, clickhouse_api.Version())
+	require.NoError(t, clickhouse_api.Connect())
 }
 
 func TestZSTDCompression(t *testing.T) {
@@ -230,3 +233,15 @@ func TestSSLCustomCerts(t *testing.T) {
 func TestSSLNoVerify(t *testing.T) {
 	require.NoError(t, clickhouse_api.SSLNoVerifyVersion())
 }
+
+// Std Tests
+
+func TestStdConnect(t *testing.T) {
+	require.NoError(t, std.Connect())
+	require.NoError(t, std.ConnectDSN())
+}
+
+// TODO:
+
+// SSL
+// println

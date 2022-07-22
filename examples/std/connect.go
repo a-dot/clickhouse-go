@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package clickhouse_api
+package std
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhouse_tests "github.com/ClickHouse/clickhouse-go/v2/tests"
@@ -28,7 +29,7 @@ func Connect() error {
 	host := clickhouse_tests.GetEnv("CLICKHOUSE_HOST", "localhost")
 	username := clickhouse_tests.GetEnv("CLICKHOUSE_USERNAME", "default")
 	password := clickhouse_tests.GetEnv("CLICKHOUSE_PASSWORD", "")
-	conn, err := clickhouse.Open(&clickhouse.Options{
+	conn := clickhouse.OpenDB(&clickhouse.Options{
 		Addr: []string{fmt.Sprintf("%s:%s", host, port)},
 		Auth: clickhouse.Auth{
 			Database: "default",
@@ -36,13 +37,15 @@ func Connect() error {
 			Password: password,
 		},
 	})
+	return conn.Ping()
+}
+
+func ConnectDSN() error {
+	port := clickhouse_tests.GetEnv("CLICKHOUSE_PORT", "9000")
+	host := clickhouse_tests.GetEnv("CLICKHOUSE_HOST", "localhost")
+	conn, err := sql.Open("clickhouse", fmt.Sprintf("clickhouse://%s:%s", host, port))
 	if err != nil {
 		return err
 	}
-	v, err := conn.ServerVersion()
-	fmt.Println(v)
-	if err != nil {
-		return err
-	}
-	return nil
+	return conn.Ping()
 }
